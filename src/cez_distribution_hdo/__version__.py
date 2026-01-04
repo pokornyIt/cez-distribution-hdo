@@ -4,6 +4,6 @@ from importlib import metadata
 
 __version__: str
 try:
-    __version__ = metadata.version(__name__.split(".")[0])
+    __version__ = metadata.version("cez-distribution-hdo")
 except metadata.PackageNotFoundError:
     __version__ = "0.0.0"

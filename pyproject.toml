@@ -1,13 +1,15 @@
 [project]
 name = "cez-distribution-hdo"
 dynamic = ["version"]
-description = "Python module for reading and interpreting values from the new CEZ Distribution API"
-readme = "README.md"
+description = "Python library for reading and interpreting CEZ Distribution HDO (NT/VT) switch schedules."
+readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.13"
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICEN[CS]E*"]
 authors = [
     { name = "pokornyIt", email = "8665714+pokornyIt@users.noreply.github.com" },
 ]
+keywords = ["cez", "hdo", "tariff", "nt", "vt", "home-assistant"]
 
 classifiers = [
     "Intended Audience :: Developers",
@@ -18,6 +20,11 @@ classifiers = [
 ]
 
 dependencies = ["httpx~=0.28.0"]
+
+[project.urls]
+Repository = "https://github.com/pokornyIt/cez-distribution-hdo"
+Issues = "https://github.com/pokornyIt/cez-distribution-hdo/issues"
+Releases = "https://github.com/pokornyIt/cez-distribution-hdo/releases"
 
 [dependency-groups]
 dev = [
@@ -39,6 +46,12 @@ source = "uv-dynamic-versioning"
 
 [tool.uv-dynamic-versioning]
 fallback-version = "0.0.0"
+
+[[tool.uv.index]]
+name = "testpypi"
+url = "https://test.pypi.org/simple/"
+publish-url = "https://test.pypi.org/legacy/"
+explicit = true
 
 [tool.ruff]
 target-version = "py313"
@@ -77,7 +90,6 @@ force-sort-within-sections = true
 known-first-party = ["cez_distribution_hdo"]
 combine-as-imports = true
 split-on-trailing-comma = false
-
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
