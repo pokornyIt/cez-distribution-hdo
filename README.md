@@ -36,13 +36,13 @@ Development tools (optional): `uv`, `ruff`, `pyright`, `pytest`, `pytest-asyncio
 Using `uv`:
 
 ```bash
-uv add "cez-distribution-hdo @ git+https://github.com/pokornyit/cez-distribution-hdo.git"
+uv add "cez-distribution-hdo @ git+https://github.com/pokornyIt/cez-distribution-hdo.git"
 ````
 
 Or with pip:
 
 ```bash
-pip install "cez-distribution-hdo @ git+https://github.com/pokornyit/cez-distribution-hdo.git"
+pip install "cez-distribution-hdo @ git+https://github.com/pokornyIt/cez-distribution-hdo.git"
 ```
 
 ## Quickstart
