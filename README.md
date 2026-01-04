@@ -24,6 +24,8 @@ Python library for reading and interpreting HDO (low/high tariff) switch times f
   - refreshes data occasionally (API call)
   - computes “snapshots” frequently without extra network calls (ideal for HA)
 
+See [`examples/`](examples/) for runnable demos (e.g., `demo_cli.py`).
+
 ## Requirements
 
 - Python `>= 3.13`
