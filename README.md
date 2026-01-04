@@ -1,6 +1,8 @@
 # cez-distribution-hdo
 
-![CI](../../actions/workflows/ci.yml/badge.svg)
+[![Checks](https://github.com/pokornyIt/cez-distribution-hdo/actions/workflows/ci.yml/badge.svg)](https://github.com/pokornyIt/cez-distribution-hdo/actions/workflows/ci.yml)
+[![Coverage Status](https://coveralls.io/repos/github/pokornyIt/cez-distribution-hdo/badge.svg)](https://coveralls.io/github/pokornyIt/cez-distribution-hdo)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Python library for reading and interpreting HDO (low/high tariff) switch times from the CEZ Distribution “switch-times / signals” API.
 
