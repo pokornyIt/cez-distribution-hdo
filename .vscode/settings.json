@@ -1,0 +1,78 @@
+{
+    "files.autoSave": "afterDelay",
+    "files.autoSaveDelay": 1000,
+    "files.refactoring.autoSave": true,
+    "files.insertFinalNewline": true,
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.tabSize": 4,
+    "editor.insertSpaces": true,
+    "python.envFile": "${workspaceFolder}/.env",
+    "python.analysis.inlayHints.functionReturnTypes": true,
+    "python.analysis.inlayHints.pytestParameters": true,
+    "python.analysis.inlayHints.variableTypes": true,
+    "python.analysis.autoImportCompletions": true,
+    "python.analysis.diagnosticMode": "openFilesOnly",
+    "python.terminal.activateEnvironment": true,
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true,
+    "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+    "python.testing.pytestPath": "${workspaceFolder}/.venv/bin/pytest",
+    "python.testing.pytestArgs": [
+        "${workspaceFolder}/tests"
+    ],
+    "[python]": {
+        "editor.defaultFormatter": "charliermarsh.ruff",
+        // "editor.wordWrap": "wordWrapColumn",
+        "editor.wordWrap": "off",
+        "editor.wordWrapColumn": 100,
+        "editor.formatOnSave": true,
+        "editor.rulers": [
+            100
+        ],
+        "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit",
+            "source.organizeImports.ruff": "explicit"
+        }
+    },
+    "ruff.lineLength": 100,
+    "ruff.enable": true,
+    "ruff.path": [
+        "${workspaceFolder}/.venv/bin/ruff"
+    ],
+    "ruff.interpreter": [
+        "${workspaceFolder}/.venv/bin/python"
+    ],
+    "ruff.lint.enable": true,
+    "cSpell.enabled": true,
+    "cSpell.language": "en,en-US",
+    "cSpell.minWordLength": 4,
+    "cSpell.numSuggestions": 8,
+    "cSpell.useGitignore": true,
+    "cSpell.checkOnlyEnabledFileTypes": true,
+    "cSpell.allowCompoundWords": false,
+    "cSpell.words": [
+        "asyncio",
+        "casy",
+        "coverallsapp",
+        "httpx",
+        "Neděle",
+        "pokorny",
+        "pytest",
+        "sdist",
+        "Sobota",
+        "timespec",
+        "venv",
+        "zoneinfo"
+    ],
+    "cSpell.ignorePaths": [
+        "package-lock.json",
+        "node_modules",
+        "vscode-extension",
+        ".git/{info,lfs,logs,refs,objects}/**",
+        ".git/{index,*refs,*HEAD}",
+        ".vscode",
+        ".vscode-insiders",
+        "pyproject.toml"
+    ]
+}

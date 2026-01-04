@@ -1,0 +1,175 @@
+# cez-distribution-hdo
+
+![CI](../../actions/workflows/ci.yml/badge.svg)
+
+Python library for reading and interpreting HDO (low/high tariff) switch times from the CEZ Distribution “switch-times / signals” API.
+
+> This repository contains the **core library** only.
+> A Home Assistant integration is planned as a separate project.
+
+## Features
+
+- Async HTTP client (`httpx`) for the CEZ Distribution API (POST JSON)
+- Parsing of `signals[]` including multiple `signal` sets (e.g. boiler vs heating)
+- Robust handling of `24:00` and **cross-midnight** low-tariff windows
+- Per-signal schedule utilities:
+  - current tariff (NT/VT)
+  - current window start/end
+  - next switch time
+  - next NT/VT window (future-only)
+  - remaining time until next switch
+- High-level service (`TariffService`) that:
+  - refreshes data occasionally (API call)
+  - computes “snapshots” frequently without extra network calls (ideal for HA)
+
+## Requirements
+
+- Python `>= 3.13`
+- Runtime dependency: `httpx`
+
+Development tools (optional): `uv`, `ruff`, `pyright`, `pytest`, `pytest-asyncio`.
+
+## Install
+
+### From Git (until published on PyPI)
+
+Using `uv`:
+
+```bash
+uv add "cez-distribution-hdo @ git+https://github.com/pokornyit/cez-distribution-hdo.git"
+````
+
+Or with pip:
+
+```bash
+pip install "cez-distribution-hdo @ git+https://github.com/pokornyit/cez-distribution-hdo.git"
+```
+
+## Quickstart
+
+### 1) Fetch schedules (API call)
+
+```python
+import asyncio
+
+from cez_distribution_hdo.client import CezHdoClient
+
+
+async def main() -> None:
+    async with CezHdoClient() as client:
+        resp = await client.fetch_signals(ean="859182400123456789")
+        print(f"Signals returned: {len(resp.data.signals)}")
+        for s in resp.data.signals[:3]:
+            print(s.signal, s.date_str, s.times_raw)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+### 2) High-level service (recommended)
+
+Refresh schedules occasionally (e.g. hourly) and compute values frequently (e.g. every 1–5 seconds) without extra API calls.
+
+```python
+import asyncio
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+from cez_distribution_hdo.service import TariffService, snapshot_to_dict
+
+
+async def main() -> None:
+    tz = ZoneInfo("Europe/Prague")
+    svc = TariffService(tz_name="Europe/Prague")
+
+    # One API call (do this occasionally)
+    await svc.refresh(ean="859182400123456789")
+
+    print("Available signals:", svc.signals)
+
+    # Compute values (no network) - do this often
+    now = datetime.now(tz)
+    for signal in svc.signals:
+        snap = svc.snapshot(signal, now=now)
+        print(snapshot_to_dict(snap))
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+## Data model
+
+The API returns a list of signal entries:
+
+* `signal` – identifies a “signal set” (multiple sets may be returned)
+* `datum` – date (DD.MM.YYYY)
+* `casy` – semicolon-separated time ranges where **low tariff (NT)** is active
+  (everything outside those windows is **high tariff (VT)**)
+
+Example:
+
+```json
+{
+  "signal": "PTV2",
+  "datum": "03.01.2026",
+  "casy": "00:00-06:00; 17:00-24:00"
+}
+```
+
+### Cross-midnight handling
+
+`24:00` is treated as `00:00` of the next day.
+
+If a low-tariff window ends at `24:00` and the next day starts with `00:00-06:00`,
+the library merges these into one continuous interval:
+
+* `03.01 17:00 → 04.01 06:00`
+
+This makes “current window”, “next switch”, and “remaining time” behave correctly.
+
+## Error handling
+
+The client raises:
+
+* `InvalidRequestError` – no identifier provided (`ean`/`sn`/`place`)
+* `HttpRequestError` – network/timeout/non-2xx HTTP errors
+* `InvalidResponseError` – unexpected JSON schema or invalid time/date formats
+* `ApiError` – API returned non-200 `statusCode` in JSON payload
+
+## Development
+
+### Setup
+
+```bash
+uv venv
+uv sync
+```
+
+### Lint / typecheck / tests
+
+```bash
+uv run ruff check .
+uv run pyright
+uv run pytest
+```
+
+### Pre-commit
+
+```bash
+uv add --group dev pre-commit
+uv run pre-commit install
+uv run pre-commit run --all-files
+```
+
+### Build
+
+```bash
+uv build
+```
+
+## License
+
+This project is licensed under the MIT License.
+See [LICENSE](LICENSE) for details.
