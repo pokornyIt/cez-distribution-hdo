@@ -58,12 +58,17 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # Only create GitHub Release for:
+      # - stable tags: vX.Y.Z
+      # - rc tags: vX.Y.ZrcN (as prerelease)
       - name: Create GitHub Release
+        if: ${{ startsWith(github.ref_name, 'v') && (github.ref_name =~ '^v[0-9]+\.[0-9]+\.[0-9]+(rc[0-9]+)?$') }}
         uses: softprops/action-gh-release@v2
         with:
           name: ${{ github.ref_name }}
           tag_name: ${{ github.ref_name }}
           body: ${{ steps.rd.outputs.body }}
+          prerelease: ${{ contains(github.ref_name, 'rc') }}
           files: |
             dist/*.whl
             dist/*.tar.gz
