@@ -45,7 +45,36 @@ print(__version__)
 
 ## Install
 
-### From Git (until published on PyPI)
+### From PyPI (recommended)
+
+```bash
+pip install cez-distribution-hdo
+```
+
+Using `uv`:
+
+```bash
+uv add cez-distribution-hdo
+```
+
+### From TestPyPI (pre-releases)
+
+> TestPyPI is useful for verifying releases before publishing to PyPI.
+> Pre-releases may require `--pre`.
+
+With pip:
+
+```bash
+pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple cez-distribution-hdo
+```
+
+With `uv` (using the `testpypi` index from `pyproject.toml`):
+
+```bash
+uv add --index testpypi cez-distribution-hdo
+```
+
+### From Git (development)
 
 Using `uv`:
 
