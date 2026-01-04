@@ -17,6 +17,7 @@ DEFAULT_TIMEOUT: int = 10
 
 # Named constant for successful API response status code
 HTTP_STATUS_OK = 200
+MAX_PRINT_SIGNALS = 10
 
 TARIFF_LOW = "NT"
 TARIFF_HIGH = "VT"

@@ -4,17 +4,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
-from typing import TYPE_CHECKING
+from typing import Literal
 from zoneinfo import ZoneInfo
 
 from .const import TARIFF_HIGH, TARIFF_LOW
 from .exceptions import InvalidResponseError
-from .models import DateTimeInterval, TariffWindow
+from .models import DateTimeInterval, SignalEntry, TariffWindow
 
-if TYPE_CHECKING:
-    from .models import SignalEntry
-
-Tariff = str  # "NT" | "VT"
+Tariff = Literal["NT", "VT"]
 
 
 def _ensure_tz(dt: datetime, tz: ZoneInfo) -> datetime:
@@ -67,10 +64,10 @@ def merge_touching(intervals: list[DateTimeInterval]) -> list[DateTimeInterval]:
     """
     if not intervals:
         return []
-    intervals.sort(key=lambda x: x.start)
+    intervals_sorted: list[DateTimeInterval] = sorted(intervals, key=lambda x: x.start)
 
-    merged: list[DateTimeInterval] = [intervals[0]]
-    for iv in intervals[1:]:
+    merged: list[DateTimeInterval] = [intervals_sorted[0]]
+    for iv in intervals_sorted[1:]:
         last: DateTimeInterval = merged[-1]
         if iv.start <= last.end:  # IMPORTANT: <= merges touching boundaries at midnight
             merged[-1] = DateTimeInterval(start=last.start, end=max(last.end, iv.end))

@@ -53,6 +53,7 @@
     "cSpell.allowCompoundWords": false,
     "cSpell.words": [
         "asyncio",
+        "autouse",
         "casy",
         "coverallsapp",
         "httpx",
@@ -74,5 +75,6 @@
         ".vscode",
         ".vscode-insiders",
         "pyproject.toml"
-    ]
+    ],
+    "git.autofetch": true
 }
