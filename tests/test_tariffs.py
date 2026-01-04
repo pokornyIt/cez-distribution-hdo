@@ -145,12 +145,25 @@ def test_parse_casy_crossing_midnight_end_before_start_is_shifted() -> None:
     assert intervals[0].end == datetime(2026, 1, 4, 1, 0, tzinfo=tz)
 
 
-def test_parse_casy_invalid_window_format_raises() -> None:
+@pytest.mark.parametrize(
+    "invalid_window",
+    [
+        "not-a-window",
+        "25:00-26:00",
+        "12:60-13:00",
+        "00:00-24:01",
+        "12:00/",
+        "/13:00",
+        "12:00-",
+        "00:00-aa:bb",
+    ],
+)
+def test_parse_casy_invalid_window_format_raises(invalid_window: str) -> None:
     tz = ZoneInfo("Europe/Prague")
     d = date(2026, 1, 3)
 
     with pytest.raises(InvalidResponseError, match="Invalid time"):
-        parse_casy(d, "not-a-window", tz)
+        parse_casy(d, invalid_window, tz)
 
 
 def test_build_schedules_groups_signals_and_sets_horizon() -> None:
@@ -322,3 +335,50 @@ def test_next_vt_window_is_future_only() -> None:
     assert next_vt is not None
     # next VT starts after the next NT block ends (after 04.01 06:00)
     assert next_vt.start == datetime(2026, 1, 4, 6, 0, tzinfo=tz)
+
+
+def test_build_schedules_with_empty_entries_returns_empty_dict() -> None:
+    schedules: dict[str, SignalSchedule] = build_schedules([])
+    assert schedules == {}
+
+
+def test_next_switch_and_remaining_on_boundaries_start_and_end() -> None:
+    tz = ZoneInfo("Europe/Prague")
+    entries: list[SignalEntry] = [
+        SignalEntry(
+            signal="PTV2",
+            day_name="Sobota",
+            date_str="03.01.2026",
+            times_raw="00:00-06:00",
+        ),
+    ]
+    s: SignalSchedule = build_schedules(entries)["PTV2"]
+
+    at_start = datetime(2026, 1, 3, 0, 0, tzinfo=tz)
+    at_end = datetime(2026, 1, 3, 6, 0, tzinfo=tz)
+
+    # At exact start of NT (00:00), next switch is the end (06:00)
+    assert s.next_switch(at_start) == at_end
+    assert s.remaining(at_start) == (at_end - at_start)
+
+    # At exact end of NT (06:00), there is no future NT boundary in loaded data
+    assert s.next_switch(at_end) is None
+    assert s.remaining(at_end) is None
+
+
+def test_merge_touching_three_intervals_cascades() -> None:
+    tz = ZoneInfo("Europe/Prague")
+    entries: list[SignalEntry] = [
+        SignalEntry(
+            signal="PTV2",
+            day_name="Sobota",
+            date_str="03.01.2026",
+            times_raw="00:00-01:00; 01:00-02:00; 01:30-03:00",
+        ),
+    ]
+    s: SignalSchedule = build_schedules(entries)["PTV2"]
+
+    # All three should merge into one: 00:00 -> 03:00
+    assert len(s.low_intervals) == 1
+    assert s.low_intervals[0].start == datetime(2026, 1, 3, 0, 0, tzinfo=tz)
+    assert s.low_intervals[0].end == datetime(2026, 1, 3, 3, 0, tzinfo=tz)

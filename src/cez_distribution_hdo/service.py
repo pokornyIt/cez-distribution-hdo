@@ -4,17 +4,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+import logging
 import re
-from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
 
 from .client import CezHdoClient
-from .const import TARIFF_HIGH, TARIFF_LOW
+from .const import MAX_PRINT_SIGNALS, TARIFF_HIGH, TARIFF_LOW
+from .models import SignalsResponse
 from .tariffs import SignalSchedule, Tariff, TariffWindow, build_schedules
 
-if TYPE_CHECKING:
-    from .models import SignalsResponse
-
+logger: logging.Logger = logging.getLogger(__name__)
 _UTC = ZoneInfo("UTC")
 
 
@@ -125,7 +124,7 @@ def sanitize_signal_for_entity(signal: str) -> str:
     return s or "signal"
 
 
-def _next_of_type(schedule: SignalSchedule, tariff: str, now: datetime) -> TariffWindow | None:
+def _next_of_type(schedule: SignalSchedule, tariff: Tariff, now: datetime) -> TariffWindow | None:
     """Return next window of given tariff type *after now*.
 
     IMPORTANT semantics (for your "next_*"):
@@ -195,6 +194,7 @@ class TariffService:
         :param client: Optional existing CezHdoClient to use.
         :raises ApiError: If the API returns an error status.
         """
+        logger.debug("Refreshing schedules (tz=%s)", self._tz.key)
         resp: SignalsResponse
         if client is None:
             async with CezHdoClient() as c:
@@ -204,6 +204,12 @@ class TariffService:
 
         self._last_response = resp
         self._schedules = build_schedules(resp.data.signals, tz_name=self._tz.key)
+
+        names: list[str] = self.signals
+        preview: str = ", ".join(names[:MAX_PRINT_SIGNALS]) if names else "(none)"
+        suffix: str = "..." if len(names) > MAX_PRINT_SIGNALS else ""
+        logger.debug("Schedules rebuilt: signals=%d (%s%s)", len(names), preview, suffix)
+
         self._last_refresh = datetime.now(self._tz)
 
     def snapshot(self, signal: str, *, now: datetime | None = None) -> TariffSnapshot:

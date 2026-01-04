@@ -58,8 +58,9 @@ ignore = [
     "D203",   # incorrect-blank-line-before-class vs D211
     "D213",   # multi-line-summary-second-line vs D212
     "D402",   # signature-in-docstring
-    "COM812", # conflicts with formatter
-    "ISC001", # conflicts with formatter
+    "COM812", # missing-trailing-comma
+    "ISC001", # single-line-implicit-string-concatenation
+    "TC001",  # typing-only-first-party-import
 ]
 
 [tool.ruff.lint.per-file-ignores]

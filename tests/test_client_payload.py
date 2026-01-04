@@ -10,6 +10,7 @@ from cez_distribution_hdo.exceptions import InvalidRequestError
     ("ean", "sn", "place", "expected"),
     [
         ("123", None, None, {"ean": "123"}),
+        (" 123 ", None, None, {"ean": "123"}),
         (None, "SN1", None, {"sn": "SN1"}),
         (None, None, "P1", {"place": "P1"}),
         ("123", "SN1", None, {"ean": "123", "sn": "SN1"}),
@@ -39,6 +40,10 @@ def test_build_payload_requires_at_least_one_key() -> None:
 def test_build_payload_accepts_ean() -> None:
     payload: dict[str, str] = CezHdoClient.build_payload(ean="123")
     assert payload == {"ean": "123"}
+
+
+def test_build_payload_strips_whitespace() -> None:
+    assert CezHdoClient.build_payload(ean=" 123 ") == {"ean": "123"}
 
 
 def test_build_payload_rejects_whitespace_only() -> None:

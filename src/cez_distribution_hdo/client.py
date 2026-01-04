@@ -2,16 +2,36 @@
 
 from __future__ import annotations
 
-from typing import Any, Self
+import logging
+from typing import Any, LiteralString, Self
 
 import httpx
 
-from .const import DEFAULT_TIMEOUT, KEY_NAME_EAN, KEY_NAME_PLACE, KEY_NAME_SN, REQUEST_URL
+from .const import (
+    DEFAULT_TIMEOUT,
+    HTTP_STATUS_OK,
+    KEY_NAME_EAN,
+    KEY_NAME_PLACE,
+    KEY_NAME_SN,
+    MAX_PRINT_SIGNALS,
+    REQUEST_URL,
+)
 from .exceptions import ApiError, HttpRequestError, InvalidRequestError, InvalidResponseError
 from .models import SignalEntry, SignalsData, SignalsResponse
 
-# Named constant for successful API response status code
-HTTP_STATUS_OK = 200
+logger: logging.Logger = logging.getLogger(__name__)
+
+
+def _normalize_id(v: str | None) -> str | None:
+    """Normalize input string: strip and convert empty to None.
+
+    :param v: Input string or None.
+    :returns: Stripped string or None.
+    """
+    if v is None:
+        return None
+    v2: str = v.strip()
+    return v2 if v2 else None
 
 
 class CezHdoClient:
@@ -95,21 +115,9 @@ class CezHdoClient:
         :returns: Payload dict for the API.
         :raises InvalidRequestError: If no identifier is provided.
         """
-
-        def norm(v: str | None) -> str | None:
-            """Normalize input string: strip and convert empty to None.
-
-            :param v: Input string or None.
-            :returns: Stripped string or None.
-            """
-            if v is None:
-                return None
-            v2: str = v.strip()
-            return v2 if v2 else None
-
-        ean_n: str | None = norm(ean)
-        sn_n: str | None = norm(sn)
-        place_n: str | None = norm(place)
+        ean_n: str | None = _normalize_id(ean)
+        sn_n: str | None = _normalize_id(sn)
+        place_n: str | None = _normalize_id(place)
 
         payload: dict[str, str] = {}
         if ean_n is not None:
@@ -146,24 +154,41 @@ class CezHdoClient:
         """
         client: httpx.AsyncClient = self._ensure_client()
         payload: dict[str, str] = self.build_payload(ean=ean, sn=sn, place=place)
+        logger.debug(
+            "Fetching signals: url=%s timeout=%ss keys=%s",
+            self._base_url,
+            self._timeout,
+            list(payload.keys()),
+        )
 
         try:
             r: httpx.Response = await client.post(self._base_url, json=payload)
+            logger.debug("HTTP response: status=%s", r.status_code)
             r.raise_for_status()
         except (httpx.TimeoutException, httpx.NetworkError, httpx.HTTPStatusError) as e:
+            logger.warning("Request failed: %s", e)
             msg: str = f"Request failed: {e!s}"
             raise HttpRequestError(msg) from e
 
         try:
             raw: dict[str, Any] = r.json()
         except ValueError as e:
+            logger.warning("Response is not valid JSON: %s", e)
             msg: str = "Response is not valid JSON."
             raise InvalidResponseError(msg) from e
+
+        logger.debug("API payload statusCode=%s", raw.get("statusCode"))
 
         return self._parse_response(raw)
 
     @staticmethod
     def _parse_response(raw: dict[str, Any]) -> SignalsResponse:
+        """Parse and validate the API response payload.
+
+        :param raw: Raw response JSON as dict.
+        :returns: Parsed SignalsResponse.
+        :raises InvalidResponseError: If response schema is unexpected.
+        """
         msg: str
         if not isinstance(raw, dict):
             msg = "Response JSON must be an object."
@@ -213,12 +238,26 @@ class CezHdoClient:
                 )
             )
 
+            signals = parsed_signals
+            unique: list[Any] = sorted({s.signal for s in signals})
+            preview: LiteralString = ", ".join(unique[:MAX_PRINT_SIGNALS])
+            suffix: str = "..." if len(unique) > MAX_PRINT_SIGNALS else ""
+            logger.debug(
+                "Parsed signals: count=%d unique=%d (%s%s)",
+                len(signals),
+                len(unique),
+                preview,
+                suffix,
+            )
+
         partner: str | None = data.get("partner")
         partner_str: str | None = partner if isinstance(partner, str) else None
 
+        flash: Any | None = raw.get("flashMessages")
+        flash_messages: list[Any] = flash if isinstance(flash, list) else []
         return SignalsResponse(
             data=SignalsData(signals=parsed_signals, partner=partner_str, raw=data),
             status_code=status_code,
-            flash_messages=raw.get("flashMessages", []),
+            flash_messages=flash_messages,
             raw=raw,
         )
