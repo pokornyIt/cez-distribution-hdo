@@ -105,9 +105,28 @@ Use these in addition to the primary label when applicable:
 
 Release version is driven **only by Git tags** in the form:
 
-* `vMAJOR.MINOR.PATCH` (e.g., `v0.1.0`)
+- `vMAJOR.MINOR.PATCH` (e.g., `v0.1.2`)
 
 Release Drafter is used only as a **release notes generator**. It does not decide the version.
+
+> Only maintainers should create release tags. Any tag without `rc/dev/a/b` is treated as a stable release and publishes to PyPI.
+
+
+### Publishing target (PyPI vs TestPyPI)
+
+The Release workflow automatically decides where to publish based on the tag name:
+
+- **TestPyPI** (pre-releases): tags that contain any of: `rc`, `dev`, `a`, `b`
+  - examples: `v0.1.2rc1`, `v0.1.2.dev1`, `v0.1.2a1`, `v0.1.2b1`
+- **PyPI** (stable releases): tags without those markers
+  - example: `v0.1.2`
+
+This matches the GitHub Actions rule:
+
+- if tag contains (`rc` OR `dev` OR `a` OR `b`) → environment `testpypi`
+- otherwise → environment `pypi`
+
+> Recommended: use PEP 440-style pre-release versions (`rc`, `dev`, `a`, `b`) to keep versions compatible with Python packaging tooling.
 
 ### Creating a release
 
@@ -116,13 +135,28 @@ After your PRs are merged into `main`, create an annotated tag on `main`:
 ```bash
 git checkout main
 git pull --ff-only
+
+# Stable release (publishes to PyPI)
 git tag -a vX.Y.Z -m "vX.Y.Z"
 git push origin tag vX.Y.Z
+```
+
+Pre-release examples (publish to TestPyPI):
+
+```bash
+# Release candidate
+git tag -a vX.Y.Zrc1 -m "vX.Y.Zrc1"
+git push origin tag vX.Y.Zrc1
+
+# Dev build
+git tag -a vX.Y.Z.dev1 -m "vX.Y.Z.dev1"
+git push origin tag vX.Y.Z.dev1
 ```
 
 A GitHub Actions workflow will:
 
 * build the distribution artifacts (`sdist` + `wheel`)
+* publish to **TestPyPI** (pre-releases) or **PyPI** (stable) based on the tag name
 * create a GitHub Release for the tag
 * attach `dist/*.whl` and `dist/*.tar.gz`
 * use Release Drafter output as the release body
