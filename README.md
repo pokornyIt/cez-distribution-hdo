@@ -33,6 +33,16 @@ See [`examples/`](examples/) for runnable demos (e.g., `demo_cli.py`).
 
 Development tools (optional): `uv`, `ruff`, `pyright`, `pytest`, `pytest-asyncio`.
 
+## Version
+
+The package version is derived from git tags via `uv-dynamic-versioning`.
+
+```python
+from cez_distribution_hdo import __version__
+
+print(__version__)
+```
+
 ## Install
 
 ### From Git (until published on PyPI)
@@ -41,12 +51,34 @@ Using `uv`:
 
 ```bash
 uv add "cez-distribution-hdo @ git+https://github.com/pokornyIt/cez-distribution-hdo.git"
-````
+```
 
 Or with pip:
 
 ```bash
 pip install "cez-distribution-hdo @ git+https://github.com/pokornyIt/cez-distribution-hdo.git"
+```
+
+## Logging
+
+This library uses Python's standard `logging` module and does not configure logging by itself.
+To see debug logs from the library, configure logging in your application:
+
+```python
+import logging
+
+logging.basicConfig(level=logging.INFO)
+
+# Increase verbosity for this library
+logging.getLogger("cez_distribution_hdo").setLevel(logging.DEBUG)
+```
+
+If you also want to see HTTPX request logs:
+
+```python
+import logging
+
+logging.getLogger("httpx").setLevel(logging.INFO)
 ```
 
 ## Quickstart
@@ -56,7 +88,7 @@ pip install "cez-distribution-hdo @ git+https://github.com/pokornyIt/cez-distrib
 ```python
 import asyncio
 
-from cez_distribution_hdo.client import CezHdoClient
+from cez_distribution_hdo import CezHdoClient
 
 
 async def main() -> None:
@@ -80,7 +112,7 @@ import asyncio
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from cez_distribution_hdo.service import TariffService, snapshot_to_dict
+from cez_distribution_hdo import TariffService, snapshot_to_dict
 
 
 async def main() -> None:
