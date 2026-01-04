@@ -14,7 +14,9 @@ jobs:
   release:
     runs-on: ubuntu-latest
     # Select PyPI or TestPyPI based on tag name
-    environment: ${{ (contains(github.ref_name, '-rc') || contains(github.ref_name, '-test')) && 'testpypi' || 'pypi' }}
+    # If the tag contains 'rc', 'dev', 'a', or 'b', use TestPyPI; otherwise, use PyPI
+    environment: ${{ (contains(github.ref_name, 'rc') || contains(github.ref_name, 'dev') || contains(github.ref_name, 'a') || contains(github.ref_name, 'b')) && 'testpypi' || 'pypi' }}
+
 
     steps:
       - name: Checkout (full history for versioning)
@@ -40,7 +42,7 @@ jobs:
 
       - name: Publish (Trusted Publisher via OIDC)
         run: |
-          if [[ "${GITHUB_REF_NAME}" == *"-rc"* || "${GITHUB_REF_NAME}" == *"-test"* ]]; then
+          if [[ "${GITHUB_REF_NAME}" == *"rc"* || "${GITHUB_REF_NAME}" == *"dev"* || "${GITHUB_REF_NAME}" == *"a"* || "${GITHUB_REF_NAME}" == *"b"* ]]; then
             uv publish --index testpypi
           else
             uv publish
