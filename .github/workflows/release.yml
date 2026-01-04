@@ -68,6 +68,7 @@ jobs:
           name: ${{ github.ref_name }}
           tag_name: ${{ github.ref_name }}
           body: ${{ steps.rd.outputs.body }}
+          draft: false
           prerelease: ${{ contains(github.ref_name, 'rc') }}
           files: |
             dist/*.whl
