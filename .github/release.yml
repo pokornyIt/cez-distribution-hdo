@@ -20,7 +20,7 @@ categories:
 exclude-labels:
   - "skip-changelog"
 
-change-template: "- $TITLE (#$NUMBER) @$AUTHOR"
+change-template: "- $TITLE by @$AUTHOR (#$NUMBER)"
 change-title-escapes: '\<*_&'
 
 template: |
