@@ -1,0 +1,31 @@
+categories:
+  - title: "💥 Breaking changes"
+    labels: ["breaking"]
+
+  - title: "🚀 Features"
+    labels: ["feature"]
+
+  - title: "🐛 Fixes"
+    labels: ["fix", "bug"]
+
+  - title: "📝 Documentation"
+    labels: ["docs"]
+
+  - title: "⬆️ Dependencies"
+    labels: ["dependencies"]
+
+  - title: "🧹 Chores"
+    labels: ["chore"]
+
+exclude-labels:
+  - "skip-changelog"
+
+change-template: "- $TITLE (#$NUMBER) @$AUTHOR"
+change-title-escapes: '\<*_&'
+
+template: |
+  ## What's Changed
+  $CHANGES
+
+  ## Contributors
+  $CONTRIBUTORS
