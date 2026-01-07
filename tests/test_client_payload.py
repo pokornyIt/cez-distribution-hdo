@@ -9,14 +9,19 @@ from cez_distribution_hdo.exceptions import InvalidRequestError
 @pytest.mark.parametrize(
     ("ean", "sn", "place", "expected"),
     [
-        ("123", None, None, {"ean": "123"}),
-        (" 123 ", None, None, {"ean": "123"}),
+        ("859182400400000000", None, None, {"ean": "859182400400000000"}),
+        (" 859182400400000000 ", None, None, {"ean": "859182400400000000"}),
         (None, "SN1", None, {"sn": "SN1"}),
         (None, None, "P1", {"place": "P1"}),
-        ("123", "SN1", None, {"ean": "123", "sn": "SN1"}),
-        ("123", None, "P1", {"ean": "123", "place": "P1"}),
+        ("859182400400000000", "SN1", None, {"ean": "859182400400000000", "sn": "SN1"}),
+        ("859182400400000000", None, "P1", {"ean": "859182400400000000", "place": "P1"}),
         (None, "SN1", "P1", {"sn": "SN1", "place": "P1"}),
-        ("123", "SN1", "P1", {"ean": "123", "sn": "SN1", "place": "P1"}),
+        (
+            "859182400400000000",
+            "SN1",
+            "P1",
+            {"ean": "859182400400000000", "sn": "SN1", "place": "P1"},
+        ),
     ],
 )
 def test_build_payload_combinations(
@@ -38,12 +43,12 @@ def test_build_payload_requires_at_least_one_key() -> None:
 
 
 def test_build_payload_accepts_ean() -> None:
-    payload: dict[str, str] = CezHdoClient.build_payload(ean="123")
-    assert payload == {"ean": "123"}
+    payload: dict[str, str] = CezHdoClient.build_payload(ean="859182400400000000")
+    assert payload == {"ean": "859182400400000000"}
 
 
 def test_build_payload_strips_whitespace() -> None:
-    assert CezHdoClient.build_payload(ean=" 123 ") == {"ean": "123"}
+    assert CezHdoClient.build_payload(ean=" 859182400400000000 ") == {"ean": "859182400400000000"}
 
 
 def test_build_payload_rejects_whitespace_only() -> None:

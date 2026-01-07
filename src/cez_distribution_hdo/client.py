@@ -18,6 +18,7 @@ from .const import (
 )
 from .exceptions import ApiError, HttpRequestError, InvalidRequestError, InvalidResponseError
 from .models import SignalEntry, SignalsData, SignalsResponse
+from .validators import validate_ean
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -121,6 +122,9 @@ class CezHdoClient:
 
         payload: dict[str, str] = {}
         if ean_n is not None:
+            if not validate_ean(ean_n):
+                msg = f"Invalid EAN format for CEZ Distribution: {ean_n}"
+                raise InvalidRequestError(msg)
             payload[KEY_NAME_EAN] = ean_n
         if sn_n is not None:
             payload[KEY_NAME_SN] = sn_n
