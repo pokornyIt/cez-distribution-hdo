@@ -122,6 +122,7 @@ from cez_distribution_hdo import CezHdoClient
 
 async def main() -> None:
     async with CezHdoClient() as client:
+        # Provide exactly one identifier: ean OR sn OR place
         resp = await client.fetch_signals(ean="859182400123456789")
         print(f"Signals returned: {len(resp.data.signals)}")
         for s in resp.data.signals[:3]:
@@ -149,6 +150,7 @@ async def main() -> None:
     svc = TariffService(tz_name="Europe/Prague")
 
     # One API call (do this occasionally)
+    # Provide exactly one identifier: ean OR sn OR place
     await svc.refresh(ean="859182400123456789")
 
     print("Available signals:", svc.signals)
@@ -163,6 +165,18 @@ async def main() -> None:
 if __name__ == "__main__":
     asyncio.run(main())
 ```
+
+## Identifiers (EAN / SN / place)
+
+The CEZ Distribution API accepts **exactly one** identifier per request.
+
+Provide one of:
+
+- `ean` — EAN of the electricity meter
+- `sn` — serial number of the electricity meter
+- `place` — place number of the electricity meter
+
+If you pass **none** or **more than one**, the library raises `InvalidRequestError`.
 
 ## Data model
 
@@ -198,7 +212,7 @@ This makes “current window”, “next switch”, and “remaining time” beh
 
 The client raises:
 
-* `InvalidRequestError` – no identifier provided (`ean`/`sn`/`place`)
+* * `InvalidRequestError` – invalid request (must provide **exactly one** identifier: `ean`/`sn`/`place`)
 * `HttpRequestError` – network/timeout/non-2xx HTTP errors
 * `InvalidResponseError` – unexpected JSON schema or invalid time/date formats
 * `ApiError` – API returned non-200 `statusCode` in JSON payload
