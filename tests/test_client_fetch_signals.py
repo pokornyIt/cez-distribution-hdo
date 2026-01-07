@@ -34,11 +34,11 @@ async def test_fetch_signals_success_sends_expected_payload() -> None:
     client = CezHdoClient(base_url="https://example.test/api")
     client._client = httpx.AsyncClient(transport=transport)  # NOTE: internal injection for tests
 
-    resp: SignalsResponse = await client.fetch_signals(ean="123")
+    resp: SignalsResponse = await client.fetch_signals(ean="859182400400000000")
     assert resp.status_code == HTTP_STATUS_OK
     assert seen["method"] == "POST"
     assert seen["url"] == "https://example.test/api"
-    assert seen["json"] == {"ean": "123"}
+    assert seen["json"] == {"ean": "859182400400000000"}
 
     await client.close()
 
@@ -53,7 +53,7 @@ async def test_fetch_signals_http_500_raises_http_request_error() -> None:
     client._client = httpx.AsyncClient(transport=transport)
 
     with pytest.raises(HttpRequestError):
-        await client.fetch_signals(ean="123")
+        await client.fetch_signals(ean="859182400400000000")
 
     await client.close()
 
@@ -68,7 +68,7 @@ async def test_fetch_signals_timeout_raises_http_request_error() -> None:
     client._client = httpx.AsyncClient(transport=transport)
 
     with pytest.raises(HttpRequestError, match="Request failed"):
-        await client.fetch_signals(ean="123")
+        await client.fetch_signals(ean="859182400400000000")
 
     await client.close()
 
@@ -83,6 +83,6 @@ async def test_fetch_signals_invalid_json_raises_invalid_response_error() -> Non
     client._client = httpx.AsyncClient(transport=transport)
 
     with pytest.raises(InvalidResponseError, match="not valid JSON"):
-        await client.fetch_signals(ean="123")
+        await client.fetch_signals(ean="859182400400000000")
 
     await client.close()

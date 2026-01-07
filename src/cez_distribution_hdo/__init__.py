@@ -4,6 +4,7 @@ from .__version__ import __version__
 from .client import CezHdoClient
 from .exceptions import ApiError, HttpRequestError, InvalidRequestError, InvalidResponseError
 from .service import TariffService, TariffSnapshot, sanitize_signal_for_entity, snapshot_to_dict
+from .validators import validate_ean
 
 __all__ = [
     "ApiError",
@@ -16,4 +17,5 @@ __all__ = [
     "__version__",
     "sanitize_signal_for_entity",
     "snapshot_to_dict",
+    "validate_ean",
 ]
