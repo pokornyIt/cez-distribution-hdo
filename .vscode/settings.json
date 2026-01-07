@@ -60,6 +60,7 @@
         "lockfiles",
         "Neděle",
         "pokorny",
+        "pprint",
         "pypi",
         "pytest",
         "sdist",

@@ -18,7 +18,7 @@ from cez_distribution_hdo.service import (
     td_to_hhmmss,
     td_to_seconds,
 )
-from cez_distribution_hdo.tariffs import build_schedules
+from cez_distribution_hdo.tariffs import SignalSchedule, build_schedules
 
 
 def test_dt_to_iso_utc_handles_none() -> None:
@@ -212,3 +212,76 @@ async def test_service_refresh_uses_injected_client_and_sets_signals() -> None:
 
     assert svc.signals == ["BOILER", "PTV2"]
     assert svc.last_refresh is not None
+
+
+def test_service_exports_before_refresh_are_empty() -> None:
+    svc = TariffService(tz_name="Europe/Prague")
+
+    assert svc.last_refresh is None
+    assert svc.last_refresh_iso_utc is None  # new export
+    assert svc.last_response is None  # new export
+    assert svc.last_response_raw() is None  # new export
+
+    assert svc.signals == []
+    assert dict(svc.schedules) == {}  # new export (read-only mapping)
+
+    # Curated export should be empty as well
+    assert svc.snapshots_dict() == {}  # new export
+
+
+@pytest.mark.asyncio
+async def test_service_exports_after_refresh_are_available() -> None:
+    class DummyClient:
+        async def fetch_signals(self, **_kwargs) -> SignalsResponse:  # noqa: ANN003
+            return SignalsResponse(
+                data=SignalsData(
+                    signals=[
+                        SignalEntry(
+                            signal="PTV2",
+                            day_name="Sobota",
+                            date_str="03.01.2026",
+                            times_raw="00:00-06:00",
+                        ),
+                        SignalEntry(
+                            signal="BOILER",
+                            day_name="Sobota",
+                            date_str="03.01.2026",
+                            times_raw="10:00-12:00",
+                        ),
+                    ],
+                    partner="x",
+                    raw={"debug": "raw-data"},
+                ),
+                status_code=200,
+                flash_messages=[],
+                raw={"statusCode": 200, "data": {"debug": "raw-data"}},
+            )
+
+    svc = TariffService(tz_name="Europe/Prague")
+    await svc.refresh(ean="123", client=DummyClient())  # type: ignore[arg-type]
+
+    assert svc.last_refresh is not None
+    assert isinstance(svc.last_refresh_iso_utc, str)
+    assert svc.last_refresh_iso_utc.endswith("+00:00")
+
+    assert svc.last_response is not None
+    raw: dict[str, object] | None = svc.last_response_raw()
+    assert isinstance(raw, dict)
+    assert raw.get("debug") == "raw-data"
+
+    # schedules export + getter
+    assert sorted(svc.schedules.keys()) == svc.signals
+    sch: SignalSchedule = svc.get_schedule("PTV2")
+    assert sch.signal == "PTV2"
+
+
+def test_service_snapshots_dict_matches_single_snapshot() -> None:
+    tz = ZoneInfo("Europe/Prague")
+    svc: TariffService = _make_service_with_schedule()
+
+    now = datetime(2026, 1, 3, 12, 0, tzinfo=tz)
+    one: dict[str, object] = snapshot_to_dict(svc.snapshot("PTV2", now=now))
+
+    all_snaps: dict[str, dict[str, object]] = svc.snapshots_dict(now=now)
+    assert set(all_snaps.keys()) == {"PTV2"}
+    assert all_snaps["PTV2"] == one
