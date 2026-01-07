@@ -212,7 +212,7 @@ This makes “current window”, “next switch”, and “remaining time” beh
 
 The client raises:
 
-* * `InvalidRequestError` – invalid request (must provide **exactly one** identifier: `ean`/`sn`/`place`)
+* `InvalidRequestError` – invalid request (must provide **exactly one** identifier: `ean`/`sn`/`place`)
 * `HttpRequestError` – network/timeout/non-2xx HTTP errors
 * `InvalidResponseError` – unexpected JSON schema or invalid time/date formats
 * `ApiError` – API returned non-200 `statusCode` in JSON payload
