@@ -285,3 +285,126 @@ def test_service_snapshots_dict_matches_single_snapshot() -> None:
     all_snaps: dict[str, dict[str, object]] = svc.snapshots_dict(now=now)
     assert set(all_snaps.keys()) == {"PTV2"}
     assert all_snaps["PTV2"] == one
+
+
+@pytest.mark.asyncio
+async def test_refresh_carries_previous_day_to_keep_cross_midnight_window() -> None:
+    tz = ZoneInfo("Europe/Prague")
+
+    class ClientDay1:
+        async def fetch_signals(self, **_kwargs) -> SignalsResponse:  # noqa: ANN003
+            return SignalsResponse(
+                data=SignalsData(
+                    signals=[
+                        SignalEntry(
+                            signal="PTV2",
+                            day_name="Pátek",
+                            date_str="02.01.2026",
+                            times_raw="17:00-24:00",
+                        ),
+                        SignalEntry(
+                            signal="PTV2",
+                            day_name="Sobota",
+                            date_str="03.01.2026",
+                            times_raw="00:00-06:00",
+                        ),
+                    ],
+                    partner="x",
+                    raw={},
+                ),
+                status_code=200,
+                flash_messages=[],
+                raw={},
+            )
+
+    class ClientDay2MissingPrev:
+        async def fetch_signals(self, **_kwargs) -> SignalsResponse:  # noqa: ANN003
+            # Provider "drops" 02.01 after midnight, returns only 03.01+
+            return SignalsResponse(
+                data=SignalsData(
+                    signals=[
+                        SignalEntry(
+                            signal="PTV2",
+                            day_name="Sobota",
+                            date_str="03.01.2026",
+                            times_raw="00:00-06:00",
+                        )
+                    ],
+                    partner="x",
+                    raw={},
+                ),
+                status_code=200,
+                flash_messages=[],
+                raw={},
+            )
+
+    svc = TariffService(tz_name="Europe/Prague")
+    await svc.refresh(ean="x", client=ClientDay1())  # type: ignore[arg-type]
+    await svc.refresh(ean="x", client=ClientDay2MissingPrev())  # type: ignore[arg-type]
+
+    snap: TariffSnapshot = svc.snapshot("PTV2", now=datetime(2026, 1, 3, 0, 10, tzinfo=tz))
+    # Must keep the true start from previous day (merged window)
+    assert snap.actual_tariff_start == datetime(2026, 1, 2, 17, 0, tzinfo=tz)
+    assert snap.actual_tariff_end == datetime(2026, 1, 3, 6, 0, tzinfo=tz)
+
+
+@pytest.mark.asyncio
+async def test_refresh_does_nothing_when_no_previous_data() -> None:
+    class Client:
+        async def fetch_signals(self, **_kwargs) -> SignalsResponse:  # noqa: ANN003
+            return SignalsResponse(
+                data=SignalsData(
+                    signals=[
+                        SignalEntry(
+                            signal="PTV2",
+                            day_name="Sobota",
+                            date_str="03.01.2026",
+                            times_raw="00:00-06:00",
+                        )
+                    ],
+                    partner="x",
+                    raw={},
+                ),
+                status_code=200,
+                flash_messages=[],
+                raw={},
+            )
+
+    svc = TariffService(tz_name="Europe/Prague")
+    await svc.refresh(ean="x", client=Client())  # type: ignore[arg-type]
+    assert svc.signals == ["PTV2"]
+
+
+@pytest.mark.asyncio
+async def test_refresh_does_not_duplicate_when_new_already_contains_previous_day() -> None:
+    class ClientDay1:
+        async def fetch_signals(self, **_kwargs) -> SignalsResponse:  # noqa: ANN003
+            return SignalsResponse(
+                data=SignalsData(
+                    signals=[
+                        SignalEntry(
+                            signal="PTV2",
+                            day_name="Pátek",
+                            date_str="02.01.2026",
+                            times_raw="17:00-24:00",
+                        ),
+                        SignalEntry(
+                            signal="PTV2",
+                            day_name="Sobota",
+                            date_str="03.01.2026",
+                            times_raw="00:00-06:00",
+                        ),
+                    ],
+                    partner="x",
+                    raw={},
+                ),
+                status_code=200,
+                flash_messages=[],
+                raw={},
+            )
+
+    svc = TariffService(tz_name="Europe/Prague")
+    await svc.refresh(ean="x", client=ClientDay1())  # type: ignore[arg-type]
+    # If provider still includes 02.01, carry must not add anything extra (should stay stable)
+    await svc.refresh(ean="x", client=ClientDay1())  # type: ignore[arg-type]
+    assert svc.signals == ["PTV2"]
