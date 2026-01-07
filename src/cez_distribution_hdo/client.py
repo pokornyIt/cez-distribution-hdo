@@ -120,6 +120,17 @@ class CezHdoClient:
         sn_n: str | None = _normalize_id(sn)
         place_n: str | None = _normalize_id(place)
 
+        provided: list[tuple[str, str | None]] = [("ean", ean_n), ("sn", sn_n), ("place", place_n)]
+        present: list[str] = [name for name, val in provided if val is not None]
+
+        msg: str
+        if len(present) == 0:
+            msg = "Exactly one of 'ean', 'sn', or 'place' must be provided."
+            raise InvalidRequestError(msg)
+        if len(present) > 1:
+            msg = f"Provide exactly one identifier (got {', '.join(present)})."
+            raise InvalidRequestError(msg)
+
         payload: dict[str, str] = {}
         if ean_n is not None:
             if not validate_ean(ean_n):
@@ -132,7 +143,7 @@ class CezHdoClient:
             payload[KEY_NAME_PLACE] = place_n
 
         if not payload:
-            msg: str = "At least one of 'ean', 'sn', or 'place' must be provided."
+            msg: str = "At one of 'ean', 'sn', or 'place' must be provided."
             raise InvalidRequestError(msg)
 
         return payload
