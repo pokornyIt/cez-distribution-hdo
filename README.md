@@ -165,6 +165,7 @@ async def main() -> None:
 if __name__ == "__main__":
     asyncio.run(main())
 ```
+
 ### Identifiers (EAN / SN / place)
 
 The CEZ Distribution API accepts **exactly one** identifier per request.
@@ -176,7 +177,6 @@ Provide one of:
 - `place` — place number of the electricity meter
 
 If you pass **none** or **more than one**, the library raises `InvalidRequestError`.
-
 
 ### Service exports (state & data)
 
@@ -247,6 +247,23 @@ the library merges these into one continuous interval:
 * `03.01 17:00 → 04.01 06:00`
 
 This makes “current window”, “next switch”, and “remaining time” behave correctly.
+
+#### Refresh behavior (midnight carry)
+
+The CEZ Distribution API may drop **“yesterday”** shortly after midnight.
+That can break cross-midnight low-tariff windows (e.g. `17:00–24:00` + `00:00–06:00` should be one continuous interval).
+
+To keep schedule computations stable, `TariffService.refresh()` automatically **carries the previous day (D-1)** from the last successful refresh **when needed**:
+
+* For each signal present in the new response, if day `D-1` is missing, it is taken from the previous refresh and merged in.
+* If a signal is **missing entirely** in the new response, the service may carry:
+
+  * `D-1` **and**
+  * all entries for `D` and later from the previous refresh,
+  * but **only if** there is at least some data for `D` or later (otherwise the signal is dropped).
+* Duplicates are removed (stable, deterministic de-duplication).
+
+This means `TariffService.last_response` and computed schedules may represent an **enriched** view of API data across refreshes.
 
 ### Error handling
 

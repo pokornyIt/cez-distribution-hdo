@@ -2,18 +2,25 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping  # noqa: TC003
-from dataclasses import dataclass
-from datetime import datetime, timedelta
+from collections import defaultdict
+from collections.abc import Callable, Mapping  # noqa: TC003
+from dataclasses import dataclass, replace
+from datetime import date, datetime, timedelta
 import logging
 import re
 from types import MappingProxyType
+from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
+
+from cez_distribution_hdo.models import SignalsData
 
 from .client import CezHdoClient
 from .const import MAX_PRINT_SIGNALS, TARIFF_HIGH, TARIFF_LOW
-from .models import SignalsResponse
-from .tariffs import SignalSchedule, Tariff, TariffWindow, build_schedules
+from .models import SignalEntry, SignalsResponse
+from .tariffs import SignalSchedule, Tariff, TariffWindow, _parse_date_ddmmyyyy, build_schedules
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 logger: logging.Logger = logging.getLogger(__name__)
 _UTC = ZoneInfo("UTC")
@@ -86,6 +93,47 @@ def snapshot_to_dict(snapshot: TariffSnapshot) -> dict[str, object]:
     }
 
 
+def _entry_key(e: SignalEntry) -> tuple[str, str, str, str]:
+    """Return logical key for a SignalEntry.
+
+    :param e: SignalEntry to get the key for.
+    :returns: Logical key tuple.
+    """
+    return (e.signal, e.date_str, e.times_raw, e.day_name)
+
+
+def _deduplicate_keep_order(items: Iterable[SignalEntry]) -> list[SignalEntry]:
+    """Deduplicate SignalEntry items by logical key, keeping first occurrence order.
+
+    :param items: Iterable of SignalEntry items.
+    :returns: Deduplicated list of SignalEntry items.
+    """
+    seen: set[tuple[str, str, str, str]] = set()
+    out: list[SignalEntry] = []
+    for it in items:
+        k: tuple[str, str, str, str] = _entry_key(it)
+        if k in seen:
+            continue
+        seen.add(k)
+        out.append(it)
+    return out
+
+
+def _parse_date_cached_factory() -> Callable[[str], date]:
+    """Small per-call cache for parsing DD.MM.YYYY repeatedly.
+
+    :returns: Callable that parses date strings with caching.
+    """
+    cache: dict[str, date] = {}
+
+    def parse(value: str) -> date:
+        if value not in cache:
+            cache[value] = _parse_date_ddmmyyyy(value)
+        return cache[value]
+
+    return parse
+
+
 @dataclass(frozen=True, slots=True)
 class TariffSnapshot:
     """One computed snapshot for a single signal at a given time."""
@@ -152,15 +200,205 @@ class TariffService:
       - snapshot(...) can be called often (1s-5s) with no API traffic
     """
 
+    _tz: ZoneInfo
+    _schedules: dict[str, SignalSchedule]
+    _last_response: SignalsResponse | None
+    _last_refresh: datetime | None
+
     def __init__(self, *, tz_name: str = "Europe/Prague") -> None:
         """Initialize the service.
 
         :param tz_name: Timezone name for all datetime computations.
         """
         self._tz = ZoneInfo(tz_name)
-        self._schedules: dict[str, SignalSchedule] = {}
-        self._last_response: SignalsResponse | None = None
-        self._last_refresh: datetime | None = None
+        self._schedules = {}
+        self._last_response = None
+        self._last_refresh = None
+
+    def _index_new_entries(
+        self, new_entries: list[SignalEntry]
+    ) -> tuple[dict[str, set[date]], set[str], date]:
+        """Index new entries by signal and collect dates.
+
+        :param new_entries: List of new SignalEntry items.
+        :returns: Tuple of (dates_by_signal, signals, global_min_date).
+        """
+        parse: Callable[[str], date] = _parse_date_cached_factory()
+
+        dates_by_signal: dict[str, set[date]] = defaultdict(set)
+        all_dates: list[date] = []
+        signals: set[str] = set()
+
+        for e in new_entries:
+            d: date = parse(e.date_str)
+            all_dates.append(d)
+            signals.add(e.signal)
+            dates_by_signal[e.signal].add(d)
+
+        return dict(dates_by_signal), signals, min(all_dates)
+
+    def _index_old_entries(
+        self, old_entries: list[SignalEntry]
+    ) -> tuple[dict[tuple[str, date], list[SignalEntry]], dict[str, list[SignalEntry]], set[str]]:
+        """Index old entries by (signal, date) and by signal.
+
+        :param old_entries: List of old SignalEntry items.
+        :returns: Tuple of (by_signal_date, by_signal, signals).
+        """
+        parse: Callable[[str], date] = _parse_date_cached_factory()
+
+        by_signal_date: dict[tuple[str, date], list[SignalEntry]] = defaultdict(list)
+        by_signal: dict[str, list[SignalEntry]] = defaultdict(list)
+        signals: set[str] = set()
+
+        for e in old_entries:
+            signals.add(e.signal)
+            d: date = parse(e.date_str)
+            by_signal_date[(e.signal, d)].append(e)
+            by_signal[e.signal].append(e)  # preserves original order
+
+        return dict(by_signal_date), dict(by_signal), signals
+
+    def _carry_for_present_signals(
+        self,
+        *,
+        new_dates_by_signal: dict[str, set[date]],
+        old_by_signal_date: dict[tuple[str, date], list[SignalEntry]],
+    ) -> list[SignalEntry]:
+        """Carry per-signal prev_day (min_new - 1) if missing in new response.
+
+        :param new_dates_by_signal: New entries indexed by signal and dates.
+        :param old_by_signal_date: Old entries indexed by (signal, date).
+        :returns: List of carried SignalEntry items.
+        """
+        extra: list[SignalEntry] = []
+
+        for signal, dates in new_dates_by_signal.items():
+            if not dates:
+                continue
+
+            prev_day: date = min(dates) - timedelta(days=1)
+
+            if prev_day in dates:
+                continue
+
+            prev_items: list[SignalEntry] = old_by_signal_date.get((signal, prev_day), [])
+            if not prev_items:
+                continue
+
+            extra.extend(prev_items)
+            logger.debug(
+                "Carrying previous-day entries: signal=%s date=%s count=%d",
+                signal,
+                prev_day.isoformat(),
+                len(prev_items),
+            )
+
+        return extra
+
+    def _carry_for_missing_signals(
+        self,
+        *,
+        missing_signals: set[str],
+        old_by_signal: dict[str, list[SignalEntry]],
+        prev_day_global: date,
+        global_min_new: date,
+    ) -> list[SignalEntry]:
+        """Missing signals in NEW response.
+
+        keep only:
+          - prev_day_global
+          - today and future (>= global_min_new)
+
+        BUT if it would keep ONLY prev_day_global (no today+), drop entirely.
+        """
+        parse: Callable[[str], date] = _parse_date_cached_factory()
+        extra: list[SignalEntry] = []
+
+        for signal in sorted(missing_signals):
+            old_items: list[SignalEntry] = old_by_signal.get(signal, [])
+            if not old_items:
+                continue
+
+            kept_prev: list[SignalEntry] = []
+            kept_today_plus: list[SignalEntry] = []
+
+            for e in old_items:
+                d: date = parse(e.date_str)
+                if d == prev_day_global:
+                    kept_prev.append(e)
+                elif d >= global_min_new:
+                    kept_today_plus.append(e)
+
+            # Only prev_day exists => drop the signal completely
+            if kept_prev and not kept_today_plus:
+                logger.debug(
+                    "Skipping missing signal carry (only prev_day exists): signal=%s prev_day=%s",
+                    signal,
+                    prev_day_global.isoformat(),
+                )
+                continue
+
+            kept: list[SignalEntry] = [*kept_prev, *kept_today_plus]
+            if not kept:
+                continue
+
+            extra.extend(kept)
+            logger.debug(
+                "Carrying missing signal entries: signal=%s prev_day=%s today_from=%s count=%d",
+                signal,
+                prev_day_global.isoformat(),
+                global_min_new.isoformat(),
+                len(kept),
+            )
+
+        return extra
+
+    def _carry_prev_day_entries(self, new_entries: list[SignalEntry]) -> list[SignalEntry]:
+        """If the API response starts at day D, carry day D-1 entries from previous refresh.
+
+        Enhancements:
+        - Works even when some signals are missing in the new response.
+        - Avoids duplicates (stable de-dup by logical entry key).
+
+        :param new_entries: Newly fetched entries from the API.
+        :returns: Extended list of entries including previous-day ones if needed.
+        """
+        if self._last_response is None or not new_entries:
+            return new_entries
+
+        old_entries: list[SignalEntry] = self._last_response.data.signals
+
+        new_dates_by_signal: dict[str, set[date]]
+        new_signals: set[str]
+        global_min_new: date
+        new_dates_by_signal, new_signals, global_min_new = self._index_new_entries(new_entries)
+        prev_day_global: date = global_min_new - timedelta(days=1)
+
+        old_by_signal_date: dict[tuple[str, date], list[SignalEntry]]
+        old_by_signal: dict[str, list[SignalEntry]]
+        old_signals: set[str]
+
+        old_by_signal_date, old_by_signal, old_signals = self._index_old_entries(old_entries)
+
+        extra_present: list[SignalEntry] = self._carry_for_present_signals(
+            new_dates_by_signal=new_dates_by_signal,
+            old_by_signal_date=old_by_signal_date,
+        )
+
+        missing_signals: set[str] = old_signals - new_signals
+        extra_missing: list[SignalEntry] = self._carry_for_missing_signals(
+            missing_signals=missing_signals,
+            old_by_signal=old_by_signal,
+            prev_day_global=prev_day_global,
+            global_min_new=global_min_new,
+        )
+
+        extra: list[SignalEntry] = [*extra_present, *extra_missing]
+        if not extra:
+            return new_entries
+
+        return _deduplicate_keep_order([*new_entries, *extra])
 
     @property
     def signals(self) -> list[str]:
@@ -246,16 +484,18 @@ class TariffService:
                 resp = await c.fetch_signals(ean=ean, sn=sn, place=place)
         else:
             resp = await client.fetch_signals(ean=ean, sn=sn, place=place)
+        effective_entries: list[SignalEntry] = self._carry_prev_day_entries(resp.data.signals)
+        self._schedules = build_schedules(effective_entries, tz_name=self._tz.key)
+        effective_data: SignalsData = replace(resp.data, signals=effective_entries)
 
-        self._last_response = resp
-        self._schedules = build_schedules(resp.data.signals, tz_name=self._tz.key)
-
+        self._last_response = replace(resp, data=effective_data)
         names: list[str] = self.signals
+        self._last_refresh = datetime.now(self._tz)
+
+        # Logging
         preview: str = ", ".join(names[:MAX_PRINT_SIGNALS]) if names else "(none)"
         suffix: str = "..." if len(names) > MAX_PRINT_SIGNALS else ""
         logger.debug("Schedules rebuilt: signals=%d (%s%s)", len(names), preview, suffix)
-
-        self._last_refresh = datetime.now(self._tz)
 
     def snapshot(self, signal: str, *, now: datetime | None = None) -> TariffSnapshot:
         """Compute all values for HA sensors for a given signal.
