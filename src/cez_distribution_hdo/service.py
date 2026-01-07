@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping  # noqa: TC003
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 import logging
 import re
+from types import MappingProxyType
 from zoneinfo import ZoneInfo
 
 from .client import CezHdoClient
@@ -176,6 +178,49 @@ class TariffService:
         """
         return self._last_refresh
 
+    @property
+    def last_refresh_iso_utc(self) -> str | None:
+        """ISO 8601 UTC timestamp of the last successful refresh, or None.
+
+        :returns: ISO 8601 string or None.
+        """
+        return dt_to_iso_utc(self._last_refresh)
+
+    @property
+    def last_response(self) -> SignalsResponse | None:
+        """Last raw SignalsResponse from the API, or None.
+
+        :returns: SignalsResponse or None.
+        """
+        return self._last_response
+
+    @property
+    def schedules(self) -> Mapping[str, SignalSchedule]:
+        """Read-only mapping of parsed schedules keyed by signal.
+
+        :returns: Mapping of SignalSchedule per signal.
+        """
+        return MappingProxyType(self._schedules)
+
+    def last_response_raw(self) -> dict[str, object] | None:
+        """Last raw data dict from the API response, or None.
+
+        :returns: Raw data dict or None.
+        """
+        return self._last_response.data.raw if self._last_response else None
+
+    def get_schedule(self, signal: str) -> SignalSchedule:
+        """Return parsed schedule for a signal.
+
+        :param signal: Signal name to get the schedule for.
+        :returns: SignalSchedule for the given signal.
+        :raises KeyError: If signal is unknown.
+        """
+        if signal not in self._schedules:
+            msg: str = f"Unknown signal {signal!r}. Known: {self.signals}"
+            raise KeyError(msg)
+        return self._schedules[signal]
+
     async def refresh(
         self,
         *,
@@ -253,3 +298,20 @@ class TariffService:
             next_switch=next_switch,
             remain_actual=remain,
         )
+
+    def snapshots(self, *, now: datetime | None = None) -> dict[str, TariffSnapshot]:
+        """Compute snapshots for all available signals.
+
+        :param now: Reference datetime (default: current time in service timezone).
+        :returns: Dict of TariffSnapshot per signal.
+        """
+        now_dt: datetime = now or datetime.now(self._tz)
+        return {s: self.snapshot(s, now=now_dt) for s in self.signals}
+
+    def snapshots_dict(self, *, now: datetime | None = None) -> dict[str, dict[str, object]]:
+        """Compute snapshots for all signals and serialize to dicts.
+
+        :param now: Reference datetime (default: current time in service timezone).
+        :returns: Dict of serialized snapshot dicts per signal.
+        """
+        return {s: snapshot_to_dict(sn) for s, sn in self.snapshots(now=now).items()}

@@ -165,8 +165,7 @@ async def main() -> None:
 if __name__ == "__main__":
     asyncio.run(main())
 ```
-
-## Identifiers (EAN / SN / place)
+### Identifiers (EAN / SN / place)
 
 The CEZ Distribution API accepts **exactly one** identifier per request.
 
@@ -178,7 +177,48 @@ Provide one of:
 
 If you pass **none** or **more than one**, the library raises `InvalidRequestError`.
 
-## Data model
+
+### Service exports (state & data)
+
+After `refresh()`, the service keeps the latest data in memory and exposes it in three levels:
+
+- **Raw (original)**:
+  - `TariffService.last_response` – last parsed response object (or `None`)
+  - `TariffService.last_response_raw()` – raw API `data` dict (debug)
+
+- **Enriched (parsed schedules)**:
+  - `TariffService.schedules` – read-only mapping `{signal: SignalSchedule}`
+  - `TariffService.get_schedule(signal)` – one schedule by signal
+
+- **Curated (ready-to-use snapshots)**:
+  - `TariffService.snapshot(signal)` – one computed snapshot
+  - `TariffService.snapshots_dict()` – computed snapshots for all signals (dicts)
+
+#### Example
+
+```python
+import asyncio
+from pprint import pprint
+from cez_distribution_hdo import TariffService
+
+async def main() -> None:
+    svc = TariffService()
+    await svc.refresh(ean="859182400123456789")
+
+    print("Last refresh UTC:", svc.last_refresh_iso_utc)
+    print("Signals:", svc.signals)
+
+    # raw payload (debug)
+    print("Raw keys:", list((svc.last_response_raw() or {}).keys()))
+
+    # curated export
+    pprint(svc.snapshots_dict())
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+### Data model
 
 The API returns a list of signal entries:
 
@@ -197,7 +237,7 @@ Example:
 }
 ```
 
-### Cross-midnight handling
+#### Cross-midnight handling
 
 `24:00` is treated as `00:00` of the next day.
 
@@ -208,7 +248,7 @@ the library merges these into one continuous interval:
 
 This makes “current window”, “next switch”, and “remaining time” behave correctly.
 
-## Error handling
+### Error handling
 
 The client raises:
 

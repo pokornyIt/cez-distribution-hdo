@@ -49,13 +49,14 @@ def _fmt_local(dt_iso_utc: str | None, tz: ZoneInfo) -> str:
     return dt.astimezone(tz).strftime("%Y-%m-%d %H:%M:%S %Z")
 
 
-def _render(
+def _render(  # noqa: PLR0913
     *,
     title: str,
     signals: list[str],
     snapshots: dict[str, dict[str, object]],
     prev: dict[str, dict[str, object]] | None,
     tz: ZoneInfo,
+    last_refresh: str | None = None,
 ) -> None:
     """Render the CLI display.
 
@@ -64,6 +65,7 @@ def _render(
     :param snapshots: current snapshots dict
     :param prev: previous snapshots dict or None
     :param tz: target timezone
+    :param last_refresh: last signal refresh ISO UTC string or None
     """
     _clear_screen()
     print(title)
@@ -105,6 +107,8 @@ def _render(
 
             print(f" {changed} {k:24s}: {out}")
         print()
+    print(f"Last refresh: {_fmt_local(last_refresh, tz)}")
+    print()
 
 
 async def main() -> int:
@@ -160,7 +164,15 @@ async def main() -> int:
             "cez-distribution-hdo demo  |  "
             f"local time: {now.strftime('%Y-%m-%d %H:%M:%S %Z')}  |  step {i}/{steps}"
         )
-        _render(title=title, signals=signals, snapshots=snapshots, prev=prev, tz=tz)
+        last_signal_refresh: str | None = service.last_refresh_iso_utc
+        _render(
+            title=title,
+            signals=signals,
+            snapshots=snapshots,
+            prev=prev,
+            tz=tz,
+            last_refresh=last_signal_refresh,
+        )
 
         prev = snapshots
         if i < steps:
